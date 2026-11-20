@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PayTrack Pro Cloud — Personal Liabilities & Payment Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .fade-in { animation: fadeIn 0.35s ease-out forwards; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .drawer-enter { animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    @keyframes slideInRight {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Top Navigation & Live Exchange Rate Bar -->
+  <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center font-bold text-lg shadow-inner">
+          ₨/$
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight">PayTrack <span class="text-indigo-400">Cloud</span></h1>
+          <p class="text-xs text-slate-400">Synced Liabilities, Committee & Expense Ledger</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
+        <button id="tab-dashboard" onclick="switchTab('dashboard')"
+          class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all bg-indigo-600 text-white shadow cursor-pointer">
+          Dashboard & Analytics
+        </button>
+        <button id="tab-entry" onclick="switchTab('entry')"
+          class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-slate-300 hover:text-white cursor-pointer">
+          Data Entry & Ledger
+        </button>
+      </nav>
+
+      <!-- Cloud Sync Status & Live PKR to USD Rate Control -->
+      <div class="flex items-center gap-2.5 flex-wrap">
+        <button onclick="openCloudModal()" id="cloudStatusBtn"
+          class="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-semibold transition cursor-pointer">
+          <span id="cloudDot" class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+          <span id="cloudStatusText">Local Only — Setup Cloud</span>
+        </button>
+
+        <div class="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
+          <span class="text-xs text-slate-400 font-medium">1 USD =</span>
+          <input id="exchangeRateInput" type="number" step="0.1" value="280"
+            class="w-20 bg-slate-900 text-emerald-400 font-bold text-sm px-2 py-1 rounded border border-slate-600 focus:outline-none focus:border-indigo-400 text-right"
+            onchange="updateExchangeRate(this.value)" />
+          <span class="text-xs text-slate-400 font-medium">PKR</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- ==================== VIEW 1: DASHBOARD ==================== -->
+    <section id="view-dashboard" class="space-y-6 fade-in">
+
+      <!-- KPI Summary Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 hover:shadow-md transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Liabilities</span>
+            <span class="p-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold">ALL</span>
+          </div>
+          <div class="mt-3 text-2xl font-bold text-slate-900" id="kpi-total-pkr">PKR 0</div>
+          <div class="mt-1 text-sm font-medium text-indigo-600" id="kpi-total-usd">$0.00 USD</div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 hover:shadow-md transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Paid</span>
+            <span class="p-2 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-bold">PAID</span>
+          </div>
+          <div class="mt-3 text-2xl font-bold text-emerald-600" id="kpi-paid-pkr">PKR 0</div>
+          <div class="mt-1 text-sm font-medium text-emerald-700/80" id="kpi-paid-usd">$0.00 USD</div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 hover:shadow-md transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Remaining Payable</span>
+            <span class="p-2 bg-rose-50 text-rose-600 rounded-lg text-xs font-bold">DUE</span>
+          </div>
+          <div class="mt-3 text-2xl font-bold text-rose-600" id="kpi-rem-pkr">PKR 0</div>
+          <div class="mt-1 text-sm font-medium text-rose-700/80" id="kpi-rem-usd">$0.00 USD</div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 hover:shadow-md transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Clearance Progress</span>
+            <span class="p-2 bg-amber-50 text-amber-600 rounded-lg text-xs font-bold" id="kpi-progress-badge">0%</span>
+          </div>
+          <div class="mt-3 text-2xl font-bold text-slate-900" id="kpi-progress-text">0% Cleared</div>
+          <div class="w-full bg-slate-100 rounded-full h-2.5 mt-2 overflow-hidden">
+            <div id="kpi-progress-bar" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-700" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Highlights Row: Max Remaining, Less Remaining, Top Paid, Less Paid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="extremes-cards"></div>
+
+      <!-- Charts Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 lg:col-span-2">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-base font-bold text-slate-800">Liabilities vs. Payments by Payment Head</h2>
+              <p class="text-xs text-slate-500">Breakdown across Loan, Committee, Expenses, Welfare & Custom Heads (PKR)</p>
+            </div>
+          </div>
+          <div class="h-72">
+            <canvas id="headChart"></canvas>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
+          <div class="mb-4">
+            <h2 class="text-base font-bold text-slate-800">Remaining Balance Share</h2>
+            <p class="text-xs text-slate-500">Pending amount distribution by person</p>
+          </div>
+          <div class="h-72 flex items-center justify-center">
+            <canvas id="remainingDoughnutChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Person-wise Paid vs Remaining Comparison Chart -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
+        <div class="mb-4">
+          <h2 class="text-base font-bold text-slate-800">Top Paid vs. Less Paid & Remaining Overview (Per Person)</h2>
+          <p class="text-xs text-slate-500">Click any person's name in the directory or priority list below to inspect all accounts</p>
+        </div>
+        <div class="h-72">
+          <canvas id="personBarChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Smart Priority Suggestions & Clickable People Directory -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
+                Smart Priority Suggestions
+              </h2>
+              <p class="text-xs text-slate-500">Ranked by urgency, due date proximity & remaining balance</p>
+            </div>
+          </div>
+          <div id="priority-list" class="space-y-3 max-h-96 overflow-y-auto pr-1"></div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-base font-bold text-slate-800">People Directory (Click Name for Full Profile)</h2>
+              <p class="text-xs text-slate-500">Aggregated balances across all payment heads per individual</p>
+            </div>
+          </div>
+          <div id="people-directory" class="divide-y divide-slate-100 max-h-96 overflow-y-auto pr-1"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 2: DATA ENTRY & LEDGER ==================== -->
+    <section id="view-entry" class="hidden space-y-6 fade-in">
+
+      <!-- Add / Edit Entry Card -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Add Liability / Payment Record</h2>
+            <p class="text-xs text-slate-500">Enter USD or PKR—the live multiplier (<span class="rate-label font-semibold text-indigo-600">280</span>) calculates both automatically.</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="openCloudModal()" class="text-xs px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold transition cursor-pointer">
+              Cloud Sync Settings
+            </button>
+            <button onclick="exportJSON()" class="text-xs px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition cursor-pointer">
+              Backup JSON
+            </button>
+            <label class="text-xs px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition cursor-pointer">
+              Restore JSON
+              <input type="file" accept=".json" onchange="importJSON(event)" class="hidden" />
+            </label>
+            <button onclick="exportCSV()" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium transition cursor-pointer">
+              Export CSV
+            </button>
+          </div>
+        </div>
+
+        <form id="entryForm" onsubmit="handleFormSubmit(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Person Name *</label>
+            <input type="text" id="personName" list="existingPeopleList" required placeholder="e.g., Ali Khan"
+              class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <datalist id="existingPeopleList"></datalist>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Payment Head / Account *</label>
+            <select id="paymentHead" onchange="toggleCustomHead(this.value)"
+              class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="Loan">Loan</option>
+              <option value="Committee">Committee</option>
+              <option value="Expenses">Expenses</option>
+              <option value="Welfare">Welfare</option>
+              <option value="Business">Business</option>
+              <option value="Custom">+ Custom Head...</option>
+            </select>
+            <input type="text" id="customHeadInput" placeholder="Enter custom account name"
+              class="hidden mt-2 w-full px-3 py-2 rounded-xl border border-indigo-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-indigo-700 mb-1">
+              Dollar Amount (USD $) <span class="text-[11px] font-normal text-slate-400">(× <span class="rate-label">280</span> = PKR)</span>
+            </label>
+            <input type="number" step="0.01" min="0" id="totalUsd" placeholder="e.g., 100"
+              oninput="syncFromUsd()"
+              class="w-full px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50/40 text-sm font-semibold text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Total Payable Amount (PKR ₨) *</label>
+            <input type="number" step="1" min="0" id="totalPkr" required placeholder="e.g., 28000"
+              oninput="syncFromPkr()"
+              class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Paid So Far (PKR ₨)</label>
+            <input type="number" step="1" min="0" id="paidPkr" value="0" oninput="updateLiveRemainingPreview()"
+              class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Priority Level</label>
+            <select id="priorityLevel"
+              class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="High">High Priority</option>
+              <option value="Medium" selected>Medium Priority</option>
+              <option value="Low">Low Priority</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Target / Due Date</label>
+            <input type="date" id="dueDate"
+              class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Notes / Reference</label>
+            <input type="text" id="entryNotes" placeholder="Optional details..."
+              class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+
+          <div class="sm:col-span-2 lg:col-span-4 flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-slate-100">
+            <div class="flex flex-wrap items-center gap-4 text-xs">
+              <span class="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700">
+                Remaining: <strong id="previewRemPkr" class="text-rose-600">PKR 0</strong> (<strong id="previewRemUsd" class="text-indigo-600">$0.00</strong>)
+              </span>
+              <span class="text-slate-400">Formula: USD × <span class="rate-label">280</span> = PKR</span>
+            </div>
+            <button type="submit"
+              class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-sm transition cursor-pointer">
+              + Save Account Entry
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Filterable Ledger Table -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+        <div class="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 class="text-base font-bold text-slate-800">All Accounts & Payment Ledger</h3>
+            <p class="text-xs text-slate-500">Click any person's name to view their complete breakdown or record a quick payment</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <input type="text" id="searchInput" oninput="renderLedger()" placeholder="Search person or note..."
+              class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-indigo-500" />
+            <select id="headFilter" onchange="renderLedger()"
+              class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs bg-white focus:outline-none focus:border-indigo-500">
+              <option value="ALL">All Payment Heads</option>
+              <option value="Loan">Loan</option>
+              <option value="Committee">Committee</option>
+              <option value="Expenses">Expenses</option>
+              <option value="Welfare">Welfare</option>
+              <option value="Business">Business</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider border-b border-slate-200">
+                <th class="py-3 px-4">Person</th>
+                <th class="py-3 px-4">Payment Head</th>
+                <th class="py-3 px-4 text-right">Total (PKR)</th>
+                <th class="py-3 px-4 text-right text-indigo-600">USD ($ @ <span class="rate-label">280</span>)</th>
+                <th class="py-3 px-4 text-right">Paid (PKR)</th>
+                <th class="py-3 px-4 text-right">Remaining (PKR / $)</th>
+                <th class="py-3 px-4 text-center">Priority / Due</th>
+                <th class="py-3 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="ledgerTableBody" class="divide-y divide-slate-100 text-sm"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== CLOUD SYNC MODAL ==================== -->
+  <div id="cloudModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 fade-in">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="text-lg font-bold text-slate-900">Permanent Cloud Sync (Firebase)</h3>
+          <p class="text-xs text-slate-500">Access your exact records from any computer or cell phone.</p>
+        </div>
+        <button onclick="closeCloudModal()" class="text-slate-400 hover:text-slate-700 font-bold text-lg cursor-pointer">✕</button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">1. Firebase Realtime Database URL</label>
+          <input type="url" id="firebaseUrlInput" placeholder="https://your-project-default-rtdb.firebaseio.com"
+            class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <p class="text-[11px] text-slate-400 mt-1">Create a free Realtime Database at console.firebase.google.com and paste its URL here.</p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">2. Secret Passcode / Ledger Key</label>
+          <input type="text" id="secretKeyInput" placeholder="e.g., my-secret-ledger-786"
+            class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <p class="text-[11px] text-slate-400 mt-1">Enter this same URL + Passcode on any device to pull your records. Only letters, numbers, and hyphens.</p>
+        </div>
+      </div>
+
+      <div id="cloudModalMsg" class="text-xs font-medium hidden p-2.5 rounded-xl"></div>
+
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
+        <button onclick="disconnectCloud()" class="px-3 py-2 rounded-xl text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 cursor-pointer">
+          Disconnect Cloud
+        </button>
+        <div class="flex gap-2">
+          <button onclick="pullFromCloud(true)" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 cursor-pointer">
+            ↓ Pull From Cloud
+          </button>
+          <button onclick="connectAndPushCloud()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer">
+            Connect & Save to Cloud
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PERSON DETAIL DRAWER ==================== -->
+  <div id="personDrawerOverlay" onclick="closePersonDrawer()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 hidden"></div>
+  <aside id="personDrawer" class="fixed top-0 right-0 h-full w-full max-w-lg bg-white shadow-2xl z-50 hidden flex flex-col drawer-enter">
+    <div class="p-6 bg-slate-900 text-white flex items-center justify-between">
+      <div>
+        <span class="text-xs uppercase tracking-wider text-indigo-400 font-semibold">Person Account Summary</span>
+        <h2 id="drawerPersonName" class="text-2xl font-bold mt-0.5">Person Name</h2>
+      </div>
+      <button onclick="closePersonDrawer()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-bold cursor-pointer">
+        ✕ Close
+      </button>
+    </div>
+    <div id="drawerContent" class="p-6 flex-1 overflow-y-auto space-y-6"></div>
+  </aside>
+
+  <!-- ==================== QUICK PAY MODAL ==================== -->
+  <div id="quickPayModal" class="fixed inset-0 bg-slate-900/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4 fade-in">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-bold text-slate-900">Record Installment / Payment</h3>
+        <button onclick="closeQuickPay()" class="text-slate-400 hover:text-slate-600 font-bold cursor-pointer">✕</button>
+      </div>
+      <p id="quickPayInfo" class="text-xs text-slate-500"></p>
+      <input type="hidden" id="quickPayEntryId" />
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Pay Amount (PKR)</label>
+          <input type="number" id="quickPayPkr" oninput="syncQuickPayUsd()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-bold" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-indigo-600 mb-1">Equivalent USD ($)</label>
+          <input type="number" step="0.01" id="quickPayUsd" oninput="syncQuickPayPkr()" class="w-full px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50/40 text-sm font-bold text-indigo-800" />
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeQuickPay()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 cursor-pointer">Cancel</button>
+        <button onclick="submitQuickPay()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer">Confirm Payment</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==================== STATE & STORAGE ====================
+    let exchangeRate = parseFloat(localStorage.getItem('paytrack_rate')) || 280;
+    let entries = JSON.parse(localStorage.getItem('paytrack_entries')) || [];
+    let firebaseUrl = localStorage.getItem('paytrack_fb_url') || '';
+    let secretKey = localStorage.getItem('paytrack_secret_key') || '';
+
+    let headChartInstance = null;
+    let remainingDoughnutInstance = null;
+    let personBarInstance = null;
+
+    if (entries.length === 0 && !firebaseUrl) {
+      entries = [
+        { id: '1', person: 'Ahmed Raza', head: 'Loan', totalPkr: 140000, paidPkr: 56000, priority: 'High', dueDate: offsetDate(4), notes: 'Personal emergency loan', history: [{ date: offsetDate(-15), amount: 56000 }] },
+        { id: '2', person: 'Ahmed Raza', head: 'Committee', totalPkr: 84000, paidPkr: 42000, priority: 'Medium', dueDate: offsetDate(12), notes: 'Monthly BC installment #6', history: [{ date: offsetDate(-20), amount: 42000 }] },
+        { id: '3', person: 'Bilal Tariq', head: 'Committee', totalPkr: 112000, paidPkr: 98000, priority: 'Low', dueDate: offsetDate(20), notes: 'Office committee pool', history: [{ date: offsetDate(-10), amount: 98000 }] },
+        { id: '4', person: 'Usman Ghani', head: 'Expenses', totalPkr: 42000, paidPkr: 7000, priority: 'High', dueDate: offsetDate(-2), notes: 'Shared trip & utility split', history: [{ date: offsetDate(-8), amount: 7000 }] },
+        { id: '5', person: 'Zainab Fatima', head: 'Welfare', totalPkr: 56000, paidPkr: 28000, priority: 'Medium', dueDate: offsetDate(7), notes: 'Community welfare fund pledge', history: [{ date: offsetDate(-5), amount: 28000 }] }
+      ];
+      localStorage.setItem('paytrack_entries', JSON.stringify(entries));
+    }
+
+    function offsetDate(days) {
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      return d.toISOString().split('T')[0];
+    }
+
+    // ==================== CLOUD SYNC ENGINE ====================
+    function getEndpoint() {
+      if (!firebaseUrl || !secretKey) return null;
+      const cleanBase = firebaseUrl.replace(/\/+$/, '');
+      const cleanKey = secretKey.replace(/[^a-zA-Z0-9_-]/g, '');
+      return `${cleanBase}/ledgers/${cleanKey}.json`;
+    }
+
+    function setCloudBadge(status, text) {
+      const dot = document.getElementById('cloudDot');
+      const label = document.getElementById('cloudStatusText');
+      label.textContent = text;
+      dot.className = 'w-2.5 h-2.5 rounded-full ' + (
+        status === 'synced' ? 'bg-emerald-400' :
+        status === 'syncing' ? 'bg-sky-400 animate-ping' :
+        status === 'error' ? 'bg-rose-500' : 'bg-amber-400'
+      );
+    }
+
+    async function saveData() {
+      localStorage.setItem('paytrack_entries', JSON.stringify(entries));
+      localStorage.setItem('paytrack_rate', exchangeRate.toString());
+
+      const endpoint = getEndpoint();
+      if (!endpoint) {
+        setCloudBadge('local', 'Local Only — Setup Cloud');
+        return;
+      }
+
+      setCloudBadge('syncing', 'Saving to Cloud...');
+      try {
+        const res = await fetch(endpoint, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            exchangeRate,
+            entries,
+            updatedAt: new Date().toISOString()
+          })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        setCloudBadge('synced', 'Cloud Synced ✓');
+      } catch (err) {
+        console.error(err);
+        setCloudBadge('error', 'Cloud Sync Error');
+      }
+    }
+
+    async function pullFromCloud(showFeedback = false) {
+      const endpoint = getEndpoint();
+      if (!endpoint) return;
+
+      setCloudBadge('syncing', 'Loading Cloud...');
+      try {
+        const res = await fetch(endpoint);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (data && Array.isArray(data.entries)) {
+          entries = data.entries;
+          if (data.exchangeRate) exchangeRate = parseFloat(data.exchangeRate) || 280;
+          localStorage.setItem('paytrack_entries', JSON.stringify(entries));
+          localStorage.setItem('paytrack_rate', exchangeRate.toString());
+          refreshAll();
+          setCloudBadge('synced', 'Cloud Synced ✓');
+          if (showFeedback) showCloudMsg('Loaded ' + entries.length + ' records from cloud!', 'emerald');
+        } else {
+          setCloudBadge('synced', 'Cloud Connected (Empty)');
+          if (showFeedback) showCloudMsg('No records found under this passcode yet. Click "Connect & Save to Cloud" to upload your current records.', 'amber');
+        }
+      } catch (err) {
+        console.error(err);
+        setCloudBadge('error', 'Cloud Connection Failed');
+        if (showFeedback) showCloudMsg('Could not connect. Check your Firebase URL and ensure Realtime Database rules allow read/write.', 'rose');
+      }
+    }
+
+    function openCloudModal() {
+      document.getElementById('firebaseUrlInput').value = firebaseUrl;
+      document.getElementById('secretKeyInput').value = secretKey;
+      document.getElementById('cloudModalMsg').classList.add('hidden');
+      document.getElementById('cloudModal').classList.remove('hidden');
+      document.getElementById('cloudModal').classList.add('flex');
+    }
+
+    function closeCloudModal() {
+      document.getElementById('cloudModal').classList.add('hidden');
+      document.getElementById('cloudModal').classList.remove('flex');
+    }
+
+    function showCloudMsg(text, color) {
+      const box = document.getElementById('cloudModalMsg');
+      box.textContent = text;
+      box.className = `text-xs font-medium p-2.5 rounded-xl bg-${color}-50 text-${color}-700 border border-${color}-200`;
+      box.classList.remove('hidden');
+    }
+
+    async function connectAndPushCloud() {
+      const url = document.getElementById('firebaseUrlInput').value.trim();
+      const key = document.getElementById('secretKeyInput').value.trim().replace(/[^a-zA-Z0-9_-]/g, '');
+      if (!url || !key) {
+        showCloudMsg('Please enter both your Firebase Database URL and a Secret Passcode.', 'rose');
+        return;
+      }
+      firebaseUrl = url;
+      secretKey = key;
+      localStorage.setItem('paytrack_fb_url', firebaseUrl);
+      localStorage.setItem('paytrack_secret_key', secretKey);
+      await saveData();
+      showCloudMsg('Connected and saved all current records to Firebase!', 'emerald');
+    }
+
+    function disconnectCloud() {
+      firebaseUrl = '';
+      secretKey = '';
+      localStorage.removeItem('paytrack_fb_url');
+      localStorage.removeItem('paytrack_secret_key');
+      setCloudBadge('local', 'Local Only — Setup Cloud');
+      showCloudMsg('Disconnected from cloud. Data remains saved locally in this browser.', 'amber');
+    }
+
+    // ==================== CURRENCY & FORM SYNC ====================
+    function updateExchangeRate(val) {
+      const parsed = parseFloat(val);
+      if (parsed && parsed > 0) {
+        exchangeRate = parsed;
+        document.querySelectorAll('.rate-label').forEach(el => el.textContent = exchangeRate);
+        syncFromUsd();
+        saveData();
+        refreshAll();
+      }
+    }
+
+    function syncFromUsd() {
+      const usd = parseFloat(document.getElementById('totalUsd').value);
+      document.getElementById('totalPkr').value = !isNaN(usd) ? Math.round(usd * exchangeRate) : '';
+      updateLiveRemainingPreview();
+    }
+
+    function syncFromPkr() {
+      const pkr = parseFloat(document.getElementById('totalPkr').value);
+      document.getElementById('totalUsd').value = !isNaN(pkr) ? (pkr / exchangeRate).toFixed(2) : '';
+      updateLiveRemainingPreview();
+    }
+
+    function updateLiveRemainingPreview() {
+      const total = parseFloat(document.getElementById('totalPkr').value) || 0;
+      const paid = parseFloat(document.getElementById('paidPkr').value) || 0;
+      const rem = Math.max(0, total - paid);
+      document.getElementById('previewRemPkr').textContent = formatPKR(rem);
+      document.getElementById('previewRemUsd').textContent = formatUSD(rem / exchangeRate);
+    }
+
+    function toggleCustomHead(val) {
+      const customInput = document.getElementById('customHeadInput');
+      if (val === 'Custom') {
+        customInput.classList.remove('hidden');
+        customInput.required = true;
+      } else {
+        customInput.classList.add('hidden');
+        customInput.required = false;
+      }
+    }
+
+    function handleFormSubmit(e) {
+      e.preventDefault();
+      const person = document.getElementById('personName').value.trim();
+      let head = document.getElementById('paymentHead').value;
+      if (head === 'Custom') {
+        head = document.getElementById('customHeadInput').value.trim() || 'Other';
+      }
+      const totalPkr = parseFloat(document.getElementById('totalPkr').value) || 0;
+      const paidPkr = Math.min(totalPkr, parseFloat(document.getElementById('paidPkr').value) || 0);
+      const priority = document.getElementById('priorityLevel').value;
+      const dueDate = document.getElementById('dueDate').value;
+      const notes = document.getElementById('entryNotes').value.trim();
+
+      entries.unshift({
+        id: Date.now().toString(),
+        person,
+        head,
+        totalPkr,
+        paidPkr,
+        priority,
+        dueDate,
+        notes,
+        history: paidPkr > 0 ? [{ date: new Date().toISOString().split('T')[0], amount: paidPkr }] : []
+      });
+
+      saveData();
+      e.target.reset();
+      document.getElementById('customHeadInput').classList.add('hidden');
+      updateLiveRemainingPreview();
+      refreshAll();
+    }
+
+    // ==================== NAVIGATION ====================
+    function switchTab(tab) {
+      const dashView = document.getElementById('view-dashboard');
+      const entryView = document.getElementById('view-entry');
+      const dashBtn = document.getElementById('tab-dashboard');
+      const entryBtn = document.getElementById('tab-entry');
+
+      if (tab === 'dashboard') {
+        dashView.classList.remove('hidden');
+        entryView.classList.add('hidden');
+        dashBtn.className = 'px-4 py-1.5 rounded-lg text-sm font-medium transition-all bg-indigo-600 text-white shadow cursor-pointer';
+        entryBtn.className = 'px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-slate-300 hover:text-white cursor-pointer';
+        renderCharts();
+      } else {
+        entryView.classList.remove('hidden');
+        dashView.classList.add('hidden');
+        entryBtn.className = 'px-4 py-1.5 rounded-lg text-sm font-medium transition-all bg-indigo-600 text-white shadow cursor-pointer';
+        dashBtn.className = 'px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-slate-300 hover:text-white cursor-pointer';
+      }
+    }
+
+    // ==================== DASHBOARD & CHARTS ====================
+    function getPeopleSummary() {
+      const map = {};
+      entries.forEach(item => {
+        if (!map[item.person]) {
+          map[item.person] = { person: item.person, total: 0, paid: 0, remaining: 0, accounts: [] };
+        }
+        const rem = Math.max(0, item.totalPkr - item.paidPkr);
+        map[item.person].total += item.totalPkr;
+        map[item.person].paid += item.paidPkr;
+        map[item.person].remaining += rem;
+        map[item.person].accounts.push(item);
+      });
+      return Object.values(map);
+    }
+
+    function renderDashboard() {
+      const totalPkr = entries.reduce((sum, e) => sum + e.totalPkr, 0);
+      const paidPkr = entries.reduce((sum, e) => sum + e.paidPkr, 0);
+      const remPkr = Math.max(0, totalPkr - paidPkr);
+      const pct = totalPkr > 0 ? Math.round((paidPkr / totalPkr) * 100) : 0;
+
+      document.getElementById('kpi-total-pkr').textContent = formatPKR(totalPkr);
+      document.getElementById('kpi-total-usd').textContent = `${formatUSD(totalPkr / exchangeRate)} USD`;
+      document.getElementById('kpi-paid-pkr').textContent = formatPKR(paidPkr);
+      document.getElementById('kpi-paid-usd').textContent = `${formatUSD(paidPkr / exchangeRate)} USD`;
+      document.getElementById('kpi-rem-pkr').textContent = formatPKR(remPkr);
+      document.getElementById('kpi-rem-usd').textContent = `${formatUSD(remPkr / exchangeRate)} USD`;
+      document.getElementById('kpi-progress-badge').textContent = `${pct}%`;
+      document.getElementById('kpi-progress-text').textContent = `${pct}% Cleared`;
+      document.getElementById('kpi-progress-bar').style.width = `${pct}%`;
+
+      const people = getPeopleSummary();
+      const extremesContainer = document.getElementById('extremes-cards');
+      if (people.length === 0) {
+        extremesContainer.innerHTML = '';
+      } else {
+        const topPaid = [...people].sort((a, b) => b.paid - a.paid)[0];
+        const lessPaid = [...people].sort((a, b) => a.paid - b.paid)[0];
+        const maxRem = [...people].sort((a, b) => b.remaining - a.remaining)[0];
+        const pendingPeople = people.filter(p => p.remaining > 0);
+        const lessRem = (pendingPeople.length ? pendingPeople : people).sort((a, b) => a.remaining - b.remaining)[0];
+
+        const cards = [
+          { label: 'Top Paid Person', person: topPaid.person, val: topPaid.paid, color: 'emerald', badge: 'MOST PAID' },
+          { label: 'Less Paid Person', person: lessPaid.person, val: lessPaid.paid, color: 'amber', badge: 'LEAST PAID' },
+          { label: 'Max Amount Remaining', person: maxRem.person, val: maxRem.remaining, color: 'rose', badge: 'HIGHEST DUE' },
+          { label: 'Less Amount Remaining', person: lessRem.person, val: lessRem.remaining, color: 'sky', badge: 'CLOSEST TO CLEAR' }
+        ];
+
+        extremesContainer.innerHTML = cards.map(c => `
+          <div onclick="openPersonDrawer('${escapeHtml(c.person)}')"
+               class="cursor-pointer bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 hover:border-${c.color}-400 transition group">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">${c.label}</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-${c.color}-50 text-${c.color}-700">${c.badge}</span>
+            </div>
+            <div class="mt-2 text-base font-bold text-slate-900 group-hover:text-indigo-600 transition">${escapeHtml(c.person)}</div>
+            <div class="text-sm font-semibold text-${c.color}-600 mt-0.5">${formatPKR(c.val)} <span class="text-xs text-slate-400">(${formatUSD(c.val / exchangeRate)})</span></div>
+          </div>
+        `).join('');
+      }
+
+      renderPrioritySuggestions();
+      renderPeopleDirectory(people);
+      renderCharts();
+    }
+
+    function renderPrioritySuggestions() {
+      const container = document.getElementById('priority-list');
+      const today = new Date().toISOString().split('T')[0];
+      const priorityWeight = { High: 3, Medium: 2, Low: 1 };
+
+      const pending = entries
+        .map(e => ({ ...e, rem: Math.max(0, e.totalPkr - e.paidPkr) }))
+        .filter(e => e.rem > 0)
+        .sort((a, b) => {
+          const pDiff = (priorityWeight[b.priority] || 1) - (priorityWeight[a.priority] || 1);
+          if (pDiff !== 0) return pDiff;
+          if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+          return b.rem - a.rem;
+        });
+
+      if (pending.length === 0) {
+        container.innerHTML = `<div class="text-center py-8 text-sm text-emerald-600 font-medium">All liabilities are 100% cleared!</div>`;
+        return;
+      }
+
+      container.innerHTML = pending.map((item, idx) => {
+        const isOverdue = item.dueDate && item.dueDate < today;
+        const badgeClass = item.priority === 'High' ? 'bg-rose-100 text-rose-700' : item.priority === 'Medium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600';
+        return `
+          <div class="p-3.5 rounded-xl border border-slate-200/90 hover:bg-slate-50 transition flex items-center justify-between gap-3">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-bold text-slate-400">#${idx + 1}</span>
+                <button onclick="openPersonDrawer('${escapeHtml(item.person)}')" class="font-bold text-sm text-slate-900 hover:text-indigo-600 underline decoration-indigo-300 cursor-pointer">
+                  ${escapeHtml(item.person)}
+                </button>
+                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700">${escapeHtml(item.head)}</span>
+                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-md ${badgeClass}">${item.priority}</span>
+                ${isOverdue ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-red-600 text-white">OVERDUE</span>' : ''}
+              </div>
+              <div class="text-xs text-slate-500">
+                Remaining: <strong class="text-rose-600">${formatPKR(item.rem)}</strong> (${formatUSD(item.rem / exchangeRate)})
+                ${item.dueDate ? ` • Due: <span class="font-medium">${item.dueDate}</span>` : ''}
+              </div>
+            </div>
+            <button onclick="openQuickPay('${item.id}')" class="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition cursor-pointer">
+              + Pay
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderPeopleDirectory(people) {
+      const container = document.getElementById('people-directory');
+      const datalist = document.getElementById('existingPeopleList');
+      datalist.innerHTML = people.map(p => `<option value="${escapeHtml(p.person)}">`).join('');
+
+      if (people.length === 0) {
+        container.innerHTML = `<p class="text-sm text-slate-400 py-6 text-center">No people added yet.</p>`;
+        return;
+      }
+
+      container.innerHTML = people.map(p => {
+        const pct = p.total > 0 ? Math.round((p.paid / p.total) * 100) : 0;
+        return `
+          <div onclick="openPersonDrawer('${escapeHtml(p.person)}')"
+               class="py-3 px-2 hover:bg-indigo-50/50 rounded-xl cursor-pointer transition flex items-center justify-between gap-4">
+            <div>
+              <div class="font-bold text-sm text-slate-900 hover:text-indigo-600 flex items-center gap-2">
+                ${escapeHtml(p.person)}
+                <span class="text-[11px] font-normal text-slate-400">(${p.accounts.length} account${p.accounts.length > 1 ? 's' : ''})</span>
+              </div>
+              <div class="text-xs text-slate-500 mt-0.5">
+                Paid: <span class="text-emerald-600 font-medium">${formatPKR(p.paid)}</span> •
+                Remaining: <span class="text-rose-600 font-semibold">${formatPKR(p.remaining)}</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-xs font-bold text-indigo-600">${pct}%</span>
+              <div class="w-24 bg-slate-200 h-1.5 rounded-full mt-1 overflow-hidden">
+                <div class="bg-indigo-600 h-1.5 rounded-full" style="width: ${pct}%"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderCharts() {
+      const headMap = {};
+      entries.forEach(e => {
+        if (!headMap[e.head]) headMap[e.head] = { total: 0, paid: 0, rem: 0 };
+        headMap[e.head].total += e.totalPkr;
+        headMap[e.head].paid += e.paidPkr;
+        headMap[e.head].rem += Math.max(0, e.totalPkr - e.paidPkr);
+      });
+      const heads = Object.keys(headMap);
+
+      if (headChartInstance) headChartInstance.destroy();
+      headChartInstance = new Chart(document.getElementById('headChart'), {
+        type: 'bar',
+        data: {
+          labels: heads,
+          datasets: [
+            { label: 'Total Liability (PKR)', data: heads.map(h => headMap[h].total), backgroundColor: '#6366f1', borderRadius: 6 },
+            { label: 'Paid (PKR)', data: heads.map(h => headMap[h].paid), backgroundColor: '#10b981', borderRadius: 6 },
+            { label: 'Remaining (PKR)', data: heads.map(h => headMap[h].rem), backgroundColor: '#f43f5e', borderRadius: 6 }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 600 }, scales: { y: { beginAtZero: true } } }
+      });
+
+      const people = getPeopleSummary().filter(p => p.remaining > 0);
+      if (remainingDoughnutInstance) remainingDoughnutInstance.destroy();
+      remainingDoughnutInstance = new Chart(document.getElementById('remainingDoughnutChart'), {
+        type: 'doughnut',
+        data: {
+          labels: people.map(p => p.person),
+          datasets: [{
+            data: people.map(p => p.remaining),
+            backgroundColor: ['#f43f5e', '#6366f1', '#f59e0b', '#10b981', '#06b6d4', '#8b5cf6', '#ec4899'],
+            borderWidth: 2
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 650 }, plugins: { legend: { position: 'bottom' } } }
+      });
+
+      const allPeople = getPeopleSummary().sort((a, b) => b.total - a.total);
+      if (personBarInstance) personBarInstance.destroy();
+      personBarInstance = new Chart(document.getElementById('personBarChart'), {
+        type: 'bar',
+        data: {
+          labels: allPeople.map(p => p.person),
+          datasets: [
+            { label: 'Paid Amount (PKR)', data: allPeople.map(p => p.paid), backgroundColor: '#10b981', borderRadius: 6 },
+            { label: 'Remaining Amount (PKR)', data: allPeople.map(p => p.remaining), backgroundColor: '#fb7185', borderRadius: 6 }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 700 }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+      });
+    }
+
+    function renderLedger() {
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      const headFilter = document.getElementById('headFilter').value;
+      const tbody = document.getElementById('ledgerTableBody');
+
+      const filtered = entries.filter(e => {
+        const matchesQuery = e.person.toLowerCase().includes(query) || (e.notes && e.notes.toLowerCase().includes(query));
+        const matchesHead = headFilter === 'ALL' || e.head === headFilter;
+        return matchesQuery && matchesHead;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-400">No matching records found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(e => {
+        const rem = Math.max(0, e.totalPkr - e.paidPkr);
+        const usdTotal = (e.totalPkr / exchangeRate).toFixed(2);
+        const usdRem = (rem / exchangeRate).toFixed(2);
+
+        return `
+          <tr class="hover:bg-slate-50/90 transition">
+            <td class="py-3 px-4 font-bold text-slate-900">
+              <button onclick="openPersonDrawer('${escapeHtml(e.person)}')" class="text-indigo-600 hover:underline cursor-pointer text-left">
+                ${escapeHtml(e.person)}
+              </button>
+              ${e.notes ? `<div class="text-[11px] font-normal text-slate-400">${escapeHtml(e.notes)}</div>` : ''}
+            </td>
+            <td class="py-3 px-4"><span class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700">${escapeHtml(e.head)}</span></td>
+            <td class="py-3 px-4 text-right font-semibold">${formatPKR(e.totalPkr)}</td>
+            <td class="py-3 px-4 text-right font-semibold text-indigo-600">$${usdTotal}</td>
+            <td class="py-3 px-4 text-right text-emerald-600 font-medium">${formatPKR(e.paidPkr)}</td>
+            <td class="py-3 px-4 text-right">
+              <div class="font-bold ${rem > 0 ? 'text-rose-600' : 'text-emerald-600'}">${formatPKR(rem)}</div>
+              <div class="text-[11px] text-slate-400">$${usdRem} USD</div>
+            </td>
+            <td class="py-3 px-4 text-center">
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${
+                e.priority === 'High' ? 'bg-rose-100 text-rose-700' : e.priority === 'Medium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
+              }">${e.priority}</span>
+              ${e.dueDate ? `<div class="text-[11px] text-slate-400 mt-0.5">${e.dueDate}</div>` : ''}
+            </td>
+            <td class="py-3 px-4 text-right space-x-1">
+              ${rem > 0 ? `<button onclick="openQuickPay('${e.id}')" class="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold cursor-pointer">+ Pay</button>` : ''}
+              <button onclick="deleteEntry('${e.id}')" class="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold cursor-pointer">Del</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function openPersonDrawer(personName) {
+      const personEntries = entries.filter(e => e.person === personName);
+      if (personEntries.length === 0) return;
+
+      const total = personEntries.reduce((s, e) => s + e.totalPkr, 0);
+      const paid = personEntries.reduce((s, e) => s + e.paidPkr, 0);
+      const rem = Math.max(0, total - paid);
+
+      document.getElementById('drawerPersonName').textContent = personName;
+      document.getElementById('drawerContent').innerHTML = `
+        <div class="grid grid-cols-3 gap-3">
+          <div class="p-3 rounded-xl bg-slate-100">
+            <div class="text-[11px] text-slate-500 font-semibold">TOTAL</div>
+            <div class="text-sm font-bold text-slate-900 mt-1">${formatPKR(total)}</div>
+            <div class="text-[11px] text-indigo-600">${formatUSD(total / exchangeRate)}</div>
+          </div>
+          <div class="p-3 rounded-xl bg-emerald-50">
+            <div class="text-[11px] text-emerald-700 font-semibold">PAID</div>
+            <div class="text-sm font-bold text-emerald-700 mt-1">${formatPKR(paid)}</div>
+            <div class="text-[11px] text-emerald-600">${formatUSD(paid / exchangeRate)}</div>
+          </div>
+          <div class="p-3 rounded-xl bg-rose-50">
+            <div class="text-[11px] text-rose-700 font-semibold">REMAINING</div>
+            <div class="text-sm font-bold text-rose-700 mt-1">${formatPKR(rem)}</div>
+            <div class="text-[11px] text-rose-600">${formatUSD(rem / exchangeRate)}</div>
+          </div>
+        </div>
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Accounts & Payment Heads (${personEntries.length})</h3>
+          <div class="space-y-3">
+            ${personEntries.map(acc => {
+              const accRem = Math.max(0, acc.totalPkr - acc.paidPkr);
+              const pct = acc.totalPkr > 0 ? Math.round((acc.paidPkr / acc.totalPkr) * 100) : 0;
+              return `
+                <div class="p-4 rounded-xl border border-slate-200 space-y-2">
+                  <div class="flex items-center justify-between">
+                    <span class="font-bold text-sm text-indigo-700">${escapeHtml(acc.head)}</span>
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100">${acc.priority} Priority</span>
+                  </div>
+                  ${acc.notes ? `<p class="text-xs text-slate-500">${escapeHtml(acc.notes)}</p>` : ''}
+                  <div class="flex justify-between text-xs pt-1">
+                    <span>Total: <strong>${formatPKR(acc.totalPkr)}</strong> ($${(acc.totalPkr / exchangeRate).toFixed(2)})</span>
+                    <span>Remaining: <strong class="text-rose-600">${formatPKR(accRem)}</strong></span>
+                  </div>
+                  <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                    <div class="bg-emerald-500 h-2 rounded-full" style="width: ${pct}%"></div>
+                  </div>
+                  <div class="flex items-center justify-between pt-1">
+                    <span class="text-[11px] text-slate-400">${acc.dueDate ? 'Due: ' + acc.dueDate : 'No due date'}</span>
+                    ${accRem > 0 ? `<button onclick="openQuickPay('${acc.id}')" class="px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-semibold cursor-pointer">+ Record Payment</button>` : '<span class="text-xs font-bold text-emerald-600">✓ Settled</span>'}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+      document.getElementById('personDrawerOverlay').classList.remove('hidden');
+      document.getElementById('personDrawer').classList.remove('hidden');
+    }
+
+    function closePersonDrawer() {
+      document.getElementById('personDrawerOverlay').classList.add('hidden');
+      document.getElementById('personDrawer').classList.add('hidden');
+    }
+
+    function openQuickPay(id) {
+      const entry = entries.find(e => e.id === id);
+      if (!entry) return;
+      const rem = Math.max(0, entry.totalPkr - entry.paidPkr);
+      document.getElementById('quickPayEntryId').value = id;
+      document.getElementById('quickPayInfo').textContent = `${entry.person} — ${entry.head} (Remaining: ${formatPKR(rem)} / $${(rem / exchangeRate).toFixed(2)})`;
+      document.getElementById('quickPayPkr').value = rem;
+      document.getElementById('quickPayUsd').value = (rem / exchangeRate).toFixed(2);
+      document.getElementById('quickPayModal').classList.remove('hidden');
+      document.getElementById('quickPayModal').classList.add('flex');
+    }
+
+    function syncQuickPayUsd() {
+      const pkr = parseFloat(document.getElementById('quickPayPkr').value) || 0;
+      document.getElementById('quickPayUsd').value = (pkr / exchangeRate).toFixed(2);
+    }
+
+    function syncQuickPayPkr() {
+      const usd = parseFloat(document.getElementById('quickPayUsd').value) || 0;
+      document.getElementById('quickPayPkr').value = Math.round(usd * exchangeRate);
+    }
+
+    function submitQuickPay() {
+      const id = document.getElementById('quickPayEntryId').value;
+      const addPkr = parseFloat(document.getElementById('quickPayPkr').value) || 0;
+      const entry = entries.find(e => e.id === id);
+      if (entry && addPkr > 0) {
+        entry.paidPkr = Math.min(entry.totalPkr, entry.paidPkr + addPkr);
+        entry.history = entry.history || [];
+        entry.history.push({ date: new Date().toISOString().split('T')[0], amount: addPkr });
+        saveData();
+        refreshAll();
+        if (!document.getElementById('personDrawer').classList.contains('hidden')) {
+          openPersonDrawer(entry.person);
+        }
+      }
+      closeQuickPay();
+    }
+
+    function closeQuickPay() {
+      document.getElementById('quickPayModal').classList.add('hidden');
+      document.getElementById('quickPayModal').classList.remove('flex');
+    }
+
+    function deleteEntry(id) {
+      if (confirm('Delete this entry?')) {
+        entries = entries.filter(e => e.id !== id);
+        saveData();
+        refreshAll();
+      }
+    }
+
+    function exportJSON() {
+      const payload = JSON.stringify({ exchangeRate, entries }, null, 2);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
+      a.download = `PayTrack_Backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+    }
+
+    function importJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (Array.isArray(parsed.entries)) {
+            entries = parsed.entries;
+            if (parsed.exchangeRate) exchangeRate = parseFloat(parsed.exchangeRate) || 280;
+            saveData();
+            refreshAll();
+            alert('Restored ' + entries.length + ' records!');
+          }
+        } catch (err) {
+          alert('Invalid backup JSON file.');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function exportCSV() {
+      const headers = ['Person', 'Payment Head', 'Total PKR', `Total USD (@${exchangeRate})`, 'Paid PKR', 'Remaining PKR', 'Remaining USD', 'Priority', 'Due Date', 'Notes'];
+      const rows = entries.map(e => {
+        const rem = Math.max(0, e.totalPkr - e.paidPkr);
+        return [
+          `"${e.person}"`, `"${e.head}"`, e.totalPkr, (e.totalPkr / exchangeRate).toFixed(2),
+          e.paidPkr, rem, (rem / exchangeRate).toFixed(2), e.priority, e.dueDate || '', `"${e.notes || ''}"`
+        ].join(',');
+      });
+      const csv = [headers.join(','), ...rows].join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      a.download = `PayTrack_Ledger_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+    }
+
+    function formatPKR(num) { return 'PKR ' + Math.round(num).toLocaleString('en-PK'); }
+    function formatUSD(num) { return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function escapeHtml(str) { return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
+
+    function refreshAll() {
+      document.getElementById('exchangeRateInput').value = exchangeRate;
+      document.querySelectorAll('.rate-label').forEach(el => el.textContent = exchangeRate);
+      renderDashboard();
+      renderLedger();
+    }
+
+    // Boot
+    refreshAll();
+    if (firebaseUrl && secretKey) {
+      pullFromCloud(false);
+    }
+  </script>
+</body>
+</html>
